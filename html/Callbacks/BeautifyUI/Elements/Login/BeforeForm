@@ -1,0 +1,495 @@
+<%init>
+use POSIX qw(strftime);
+
+my $today    = strftime( "%m-%d", localtime );
+my $today_display = strftime( "%B %d, %Y", localtime );
+$today_display =~ s/ 0(\d),/ $1,/;    # "April 05" → "April 5"
+my $csv_path = RT->Config->Get('HolidaysCSVPath')
+              || $RT::LocalEtcPath . '/holidays-worldwide.csv';
+my @found;
+
+if ( -f $csv_path && open( my $fh, '<:encoding(UTF-8)', $csv_path ) ) {
+    <$fh>;
+    while ( my $line = <$fh> ) {
+        chomp $line;
+        my @f = _hol_csv_parse($line);
+        next unless @f >= 5;
+        my ( $date, $name, $countries, $type, $desc ) = @f;
+        my $hit = 0;
+        if ( $date =~ m{^(\d{2})-(\d{2})/(\d{2})$} ) {
+            $hit = ( $today eq "$1-$2" || $today eq "$1-$3" );
+        } else {
+            $hit = ( $date eq $today );
+        }
+        push @found, { name => $name, countries => $countries,
+                       type => $type, desc => $desc } if $hit;
+    }
+    close $fh;
+}
+
+# ── Type display ──────────────────────────────────────────────────────────────
+my %TYPE_ICON = (
+    'National Holiday'               => '&#x1F3DB;&#xFE0F;',
+    'Religious Holiday'              => '&#x1F54A;&#xFE0F;',
+    'Cultural Holiday'               => '&#x1F3AD;',
+    'Cultural/Religious Holiday'     => '&#x1F54A;&#xFE0F;',
+    'Religious/Cultural Holiday'     => '&#x1F54A;&#xFE0F;',
+    'National/Cultural Holiday'      => '&#x1F3DB;&#xFE0F;',
+    'National/Religious Holiday'     => '&#x1F54A;&#xFE0F;',
+    'Religious/National Holiday'     => '&#x1F54A;&#xFE0F;',
+    'International Holiday'          => '&#x1F30D;',
+    'Political Holiday'              => '&#x1F5F3;&#xFE0F;',
+    'National/Political Holiday'     => '&#x1F5F3;&#xFE0F;',
+    'Commemoration'                  => '&#x1F56F;&#xFE0F;',
+    'National/Commemoration'         => '&#x1F56F;&#xFE0F;',
+    'National/Commemoration Holiday' => '&#x1F56F;&#xFE0F;',
+    'International Commemoration'    => '&#x1F56F;&#xFE0F;',
+    'Cultural Tradition'             => '&#x1F3AA;',
+    'Regional Holiday'               => '&#x1F4CD;',
+);
+my %TYPE_COLOR = (
+    'National Holiday'               => '#0076BE',
+    'Religious Holiday'              => '#9B59B6',
+    'Cultural Holiday'               => '#27AE60',
+    'Cultural/Religious Holiday'     => '#9B59B6',
+    'Religious/Cultural Holiday'     => '#9B59B6',
+    'National/Cultural Holiday'      => '#0076BE',
+    'National/Religious Holiday'     => '#9B59B6',
+    'Religious/National Holiday'     => '#9B59B6',
+    'International Holiday'          => '#E67E22',
+    'Political Holiday'              => '#2980B9',
+    'National/Political Holiday'     => '#2980B9',
+    'Commemoration'                  => '#7F8C8D',
+    'National/Commemoration'         => '#7F8C8D',
+    'National/Commemoration Holiday' => '#7F8C8D',
+    'International Commemoration'    => '#7F8C8D',
+    'Cultural Tradition'             => '#27AE60',
+    'Regional Holiday'               => '#16A085',
+);
+
+# ── Country name → ISO 3166-1 alpha-2 code ───────────────────────────────────
+my %CC = (
+    'Afghanistan'                    => 'AF',
+    'Albania'                        => 'AL',
+    'Algeria'                        => 'DZ',
+    'Argentina'                      => 'AR',
+    'Australia'                      => 'AU',
+    'Austria'                        => 'AT',
+    'Azerbaijan'                     => 'AZ',
+    'Bahamas'                        => 'BS',
+    'Bahrain'                        => 'BH',
+    'Bangladesh'                     => 'BD',
+    'Barbados'                       => 'BB',
+    'Belarus'                        => 'BY',
+    'Belgium'                        => 'BE',
+    'Bhutan'                         => 'BT',
+    'Bolivia'                        => 'BO',
+    'Bosnia'                         => 'BA',
+    'Botswana'                       => 'BW',
+    'Brazil'                         => 'BR',
+    'Brunei'                         => 'BN',
+    'Bulgaria'                       => 'BG',
+    'Burkina Faso'                   => 'BF',
+    'Cambodia'                       => 'KH',
+    'Cameroon'                       => 'CM',
+    'Canada'                         => 'CA',
+    'Cape Verde'                     => 'CV',
+    'Central African Republic'       => 'CF',
+    'Chad'                           => 'TD',
+    'Chile'                          => 'CL',
+    'China'                          => 'CN',
+    'Colombia'                       => 'CO',
+    'Comoros'                        => 'KM',
+    'Costa Rica'                     => 'CR',
+    'Croatia'                        => 'HR',
+    'Cuba'                           => 'CU',
+    'Cyprus'                         => 'CY',
+    'Czech Republic'                 => 'CZ',
+    'Czechia'                        => 'CZ',
+    "Côte d'Ivoire"                  => 'CI',
+    'Denmark'                        => 'DK',
+    'Djibouti'                       => 'DJ',
+    'Dominica'                       => 'DM',
+    'Dominican Republic'             => 'DO',
+    'Ecuador'                        => 'EC',
+    'Egypt'                          => 'EG',
+    'El Salvador'                    => 'SV',
+    'England'                        => 'GB',
+    'Estonia'                        => 'EE',
+    'Ethiopia'                       => 'ET',
+    'Eswatini'                       => 'SZ',
+    'Fiji'                           => 'FJ',
+    'Finland'                        => 'FI',
+    'France'                         => 'FR',
+    'Gabon'                          => 'GA',
+    'Gambia'                         => 'GM',
+    'Georgia'                        => 'GE',
+    'Germany'                        => 'DE',
+    'Ghana'                          => 'GH',
+    'Great Britain'                  => 'GB',
+    'Greece'                         => 'GR',
+    'Grenada'                        => 'GD',
+    'Guatemala'                      => 'GT',
+    'Guinea'                         => 'GN',
+    'Guyana'                         => 'GY',
+    'Haiti'                          => 'HT',
+    'Honduras'                       => 'HN',
+    'Hungary'                        => 'HU',
+    'Iceland'                        => 'IS',
+    'India'                          => 'IN',
+    'Indonesia'                      => 'ID',
+    'Iran'                           => 'IR',
+    'Iraq'                           => 'IQ',
+    'Ireland'                        => 'IE',
+    'Israel'                         => 'IL',
+    'Italy'                          => 'IT',
+    'Ivory Coast'                    => 'CI',
+    'Jamaica'                        => 'JM',
+    'Japan'                          => 'JP',
+    'Jordan'                         => 'JO',
+    'Kazakhstan'                     => 'KZ',
+    'Kenya'                          => 'KE',
+    'Kuwait'                         => 'KW',
+    'Kyrgyzstan'                     => 'KG',
+    'Laos'                           => 'LA',
+    'Latvia'                         => 'LV',
+    'Lebanon'                        => 'LB',
+    'Lesotho'                        => 'LS',
+    'Liberia'                        => 'LR',
+    'Libya'                          => 'LY',
+    'Liechtenstein'                  => 'LI',
+    'Lithuania'                      => 'LT',
+    'Luxembourg'                     => 'LU',
+    'Madagascar'                     => 'MG',
+    'Malawi'                         => 'MW',
+    'Malaysia'                       => 'MY',
+    'Mali'                           => 'ML',
+    'Malta'                          => 'MT',
+    'Mauritania'                     => 'MR',
+    'Mauritius'                      => 'MU',
+    'Mexico'                         => 'MX',
+    'Micronesia'                     => 'FM',
+    'Moldova'                        => 'MD',
+    'Mongolia'                       => 'MN',
+    'Montenegro'                     => 'ME',
+    'Morocco'                        => 'MA',
+    'Mozambique'                     => 'MZ',
+    'Myanmar'                        => 'MM',
+    'Namibia'                        => 'NA',
+    'Nepal'                          => 'NP',
+    'Netherlands'                    => 'NL',
+    'New Zealand'                    => 'NZ',
+    'Nicaragua'                      => 'NI',
+    'Niger'                          => 'NE',
+    'Nigeria'                        => 'NG',
+    'North Macedonia'                => 'MK',
+    'Norway'                         => 'NO',
+    'NZ'                             => 'NZ',
+    'Oman'                           => 'OM',
+    'Pakistan'                       => 'PK',
+    'Panama'                         => 'PA',
+    'Papua New Guinea'               => 'PG',
+    'Paraguay'                       => 'PY',
+    'Peru'                           => 'PE',
+    'Philippines'                    => 'PH',
+    'Poland'                         => 'PL',
+    'Portugal'                       => 'PT',
+    'Qatar'                          => 'QA',
+    'Romania'                        => 'RO',
+    'Russia'                         => 'RU',
+    'Rwanda'                         => 'RW',
+    'Saudi Arabia'                   => 'SA',
+    'Scotland'                       => 'GB',
+    'Senegal'                        => 'SN',
+    'Serbia'                         => 'RS',
+    'Singapore'                      => 'SG',
+    'Slovakia'                       => 'SK',
+    'Slovenia'                       => 'SI',
+    'South Africa'                   => 'ZA',
+    'South Korea'                    => 'KR',
+    'Spain'                          => 'ES',
+    'Sri Lanka'                      => 'LK',
+    'Sudan'                          => 'SD',
+    'Suriname'                       => 'SR',
+    'Swaziland'                      => 'SZ',
+    'Sweden'                         => 'SE',
+    'Switzerland'                    => 'CH',
+    'Syria'                          => 'SY',
+    'Taiwan'                         => 'TW',
+    'Tajikistan'                     => 'TJ',
+    'Tanzania'                       => 'TZ',
+    'Thailand'                       => 'TH',
+    'Tibet'                          => 'CN',
+    'Trinidad and Tobago'            => 'TT',
+    'Tunisia'                        => 'TN',
+    'Turkey'                         => 'TR',
+    'Turkmenistan'                   => 'TM',
+    'Tuvalu'                         => 'TV',
+    'UAE'                            => 'AE',
+    'Uganda'                         => 'UG',
+    'UK'                             => 'GB',
+    'Ukraine'                        => 'UA',
+    'United Arab Emirates'           => 'AE',
+    'United Kingdom'                 => 'GB',
+    'United States'                  => 'US',
+    'Uruguay'                        => 'UY',
+    'USA'                            => 'US',
+    'Uzbekistan'                     => 'UZ',
+    'Vanuatu'                        => 'VU',
+    'Venezuela'                      => 'VE',
+    'Vietnam'                        => 'VN',
+    'Yemen'                          => 'YE',
+    'Zambia'                         => 'ZM',
+    'Zimbabwe'                       => 'ZW',
+);
+
+# Generate flag HTML entity pair from ISO-2 code (e.g. 'DE' → &#x1F1E9;&#x1F1EA;)
+my $flag_html = sub {
+    my ($code) = @_;
+    $code = uc($code);
+    return '' unless $code =~ /^[A-Z]{2}$/;
+    my @c = split //, $code;
+    return sprintf( '&#x%X;&#x%X;',
+        0x1F1E6 + ord($c[0]) - 65,
+        0x1F1E6 + ord($c[1]) - 65 );
+};
+
+# Flag(s) for a single country name string
+my $flag_for = sub {
+    my ($name) = @_;
+    $name =~ s/^\s+|\s+$//g;
+    my $code = $CC{$name};
+    return $code ? $flag_html->($code) : '';
+};
+
+# Extract flags from a parenthesized country hint inside a description
+# e.g. "Anzac Day (Australia/NZ) honors..." → "&#x...;&#x...;" for AU + NZ
+my $flags_from_hint = sub {
+    my ($desc) = @_;
+    return '' unless $desc =~ /\(([^)]+)\)/;
+    my $hint = $1;
+    my @parts = split m{/|\s+and\s+|,\s*}, $hint;
+    my ( @flags, %seen );
+    for my $p (@parts) {
+        $p =~ s/^\s+|\s+$//g;
+        my $f = $flag_for->($p);
+        push @flags, $f if $f && !$seen{$f}++;
+    }
+    return join( '&#x200B;', @flags );    # zero-width space between flags
+};
+
+# Flags for a full countries field (split by middle-dot)
+# Returns globe entity for >5 countries or "worldwide" entries
+my $flags_for_countries = sub {
+    my ($countries) = @_;
+    return '&#x1F30D;'
+        if $countries =~ /worldwide|all countries|islamic countries|EU member/i;
+    my $sep   = "\x{00b7}";
+    my @parts = split /\s*\Q$sep\E\s*/, $countries;
+    return '&#x1F30D;' if @parts > 6;
+    my ( @flags, %seen );
+    for my $p (@parts) {
+        $p =~ s/^\s+|\s+$//g;
+        $p =~ s/\s*\([^)]*\)//g;    # strip "(some cantons)" qualifiers
+        # also strip sub-region notation like "BY·BW·..."
+        $p =~ s/\s*\(.*//;
+        my $f = $flag_for->($p);
+        push @flags, $f if $f && !$seen{$f}++;
+    }
+    return @flags ? join( '&#x200B;', @flags ) : '&#x1F30D;';
+};
+
+# Build "&#xFLAG; Country · &#xFLAG; Country" HTML for the card header line
+my $country_list_html = sub {
+    my ($countries) = @_;
+    return '&#x1F30D; Worldwide'
+        if $countries =~ /worldwide|all countries/i;
+    return '&#x1F30D; Islamic countries'
+        if $countries =~ /islamic countries/i;
+    return '&#x1F30D; EU member states'
+        if $countries =~ /EU member/i;
+    my $sep   = "\x{00b7}";
+    my @parts = split /\s*\Q$sep\E\s*/, $countries;
+    return '&#x1F30D; Multiple countries' if @parts > 6;
+    my @items;
+    for my $p (@parts) {
+        $p =~ s/^\s+|\s+$//g;
+        ( my $name = $p ) =~ s/\s*\([^)]*\)//g;
+        my $code = $CC{$name};
+        my $flag = $code ? $flag_html->($code) : '';
+        push @items, ( $flag ? "$flag $name" : $name );
+    }
+    return join( ' &#xB7; ', @items );
+};
+
+sub _hol_truncate {
+    my ( $text, $max ) = @_;
+    return $text if length($text) <= $max;
+    return substr( $text, 0, $max ) =~ s/\s+\S*$//r . ' ...';
+}
+
+sub _hol_csv_parse {
+    my ($line) = @_;
+    my @fields;
+    while ( length $line ) {
+        if ( $line =~ s/^"((?:[^"]|"")*)"(?:,|$)// ) {
+            my $val = $1; $val =~ s/""/"/g; push @fields, $val;
+        } elsif ( $line =~ s/^([^,]*)(?:,|$)// ) {
+            push @fields, $1;
+        } else { last }
+    }
+    return @fields;
+}
+</%init>
+% if (@found) {
+<style>
+/* Holiday Banner - Login Page */
+#kn-holiday-banner {
+    margin: 2.2rem auto 1.8rem auto;
+    max-width: 800px;
+    font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+    animation: kn-hol-in 0.5s cubic-bezier(.22,.68,0,1.1) both;
+}
+@keyframes kn-hol-in {
+    from { opacity: 0; transform: translateY(-8px); }
+    to   { opacity: 1; transform: translateY(0);    }
+}
+.kn-hol-heading {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #003B6F;
+    background: #EAF3FB;
+    border: 1px solid #B8D0E6;
+    border-radius: 999px;
+    padding: 0.3rem 0.85rem 0.3rem 0.65rem;
+    margin-bottom: 0.75rem;
+}
+.kn-hol-heading-date {
+    font-weight: 400;
+    letter-spacing: 0.04em;
+    opacity: 0.72;
+}
+.kn-hol-card {
+    background: #002244;
+    border: 1px solid rgba(0, 118, 190, 0.40);
+    border-left: 4px solid #0076BE;
+    border-radius: 0.6rem;
+    padding: 1rem 1.1rem;
+    margin-bottom: 0.6rem;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 4px 18px rgba(0, 35, 70, 0.18);
+}
+.kn-hol-card::after {
+    content: '';
+    position: absolute;
+    top: 0; right: 0;
+    width: 35%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(0,118,190,0.07));
+    pointer-events: none;
+}
+.kn-hol-name {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #E8F4FF;
+    line-height: 1.35;
+    margin-bottom: 0.5rem;
+}
+.kn-hol-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.35rem;
+}
+.kn-hol-badge {
+    font-size: 0.66rem;
+    font-weight: 600;
+    padding: 0.18rem 0.6rem;
+    border-radius: 999px;
+    background: rgba(0,118,190,0.28);
+    color: #7DCFF5;
+    border: 1px solid rgba(91,170,214,0.35);
+    white-space: nowrap;
+}
+.kn-hol-country-row {
+    font-size: 0.78rem;
+    color: #7ABDE0;
+    line-height: 1.7;
+    margin-bottom: 0.5rem;
+    letter-spacing: 0.01em;
+}
+.kn-hol-divider {
+    height: 1px;
+    background: rgba(0,118,190,0.20);
+    margin: 0.55rem 0;
+}
+/* Single description (no sub-split) */
+.kn-hol-desc {
+    font-size: 0.77rem;
+    color: #8DBAD8;
+    line-height: 1.55;
+}
+/* Sub-entries for combined holidays */
+.kn-hol-sub {
+    display: block;
+    padding: 0.45rem 0;
+    border-bottom: 1px solid rgba(0,118,190,0.13);
+}
+.kn-hol-sub:last-child { border-bottom: none; padding-bottom: 0; }
+.kn-hol-sub-name {
+    font-size: 0.83rem;
+    font-weight: 700;
+    color: #C8E4F8;
+    margin-bottom: 0.18rem;
+}
+.kn-hol-sub-flag {
+    font-size: 1.0rem;
+    display: inline;
+    margin-left: 0.25rem;
+}
+.kn-hol-sub-desc {
+    font-size: 0.75rem;
+    color: #8DBAD8;
+    line-height: 1.5;
+}
+</style>
+
+<div id="kn-holiday-banner">
+  <div class="kn-hol-heading">&#x1F5D3;&#xFE0F;&nbsp; Today's Holidays <span class="kn-hol-heading-date">&mdash; <% $today_display | h %></span></div>
+% for my $h (@found) {
+%   my $icon     = $TYPE_ICON{ $h->{type} }  // '&#x1F389;';
+%   my $color    = $TYPE_COLOR{ $h->{type} } // '#FFD100';
+%   my $sep      = "\x{00b7}";
+%   my @sub_names = map { s/^\s+|\s+$//gr } split /\Q$sep\E/, $h->{name};
+%   my @sub_descs = map { s/^\s+|\s+$//gr } split /\Q$sep\E/, $h->{desc};
+%   my $is_multi  = @sub_names > 1 && @sub_names == @sub_descs;
+%   my $clist     = $country_list_html->( $h->{countries} );
+  <div class="kn-hol-card" style="border-left-color:<% $color %>">
+    <div class="kn-hol-name"><% $icon | n %>&nbsp;<% $h->{name} | h %></div>
+    <div class="kn-hol-meta">
+      <span class="kn-hol-badge"><% $h->{type} | h %></span>
+    </div>
+    <div class="kn-hol-country-row"><% $clist | n %></div>
+    <div class="kn-hol-divider"></div>
+%   if ($is_multi) {
+%     for my $i (0 .. $#sub_names) {
+%       my $sflags = $flags_from_hint->( $sub_descs[$i] );
+%       $sflags ||= $flags_for_countries->( $h->{countries} ) if @sub_names == 1;
+    <div class="kn-hol-sub">
+      <div class="kn-hol-sub-name"><% $sub_names[$i] | h %>&nbsp;<span class="kn-hol-sub-flag"><% $sflags | n %></span></div>
+      <div class="kn-hol-sub-desc"><% $sub_descs[$i] | h %></div>
+    </div>
+%     }
+%   } else {
+    <div class="kn-hol-desc"><% $h->{desc} | h %></div>
+%   }
+  </div>
+% }
+</div>
+% }

@@ -1,0 +1,171 @@
+package RT::Extension::BeautifyUI;
+
+our $VERSION = '2.1.0';
+
+RT->AddStyleSheets('beautify-ui.css');
+
+# Register all dashboard widgets automatically
+{
+    my @widgets = qw(
+        ClockWidget
+        WeatherWidget
+        ArticlesWidget
+        AssetsWidget
+        UserProfileWidget
+        TodaysHolidays
+    );
+    my $components = RT->Config->Get('HomepageComponents');
+    my %existing   = map { $_ => 1 } @{$components};
+    my @to_add     = grep { !$existing{$_} } @widgets;
+    if (@to_add) {
+        RT->Config->Set( 'HomepageComponents', [ @{$components}, @to_add ] );
+    }
+}
+
+=head1 NAME
+
+RT::Extension::BeautifyUI - Visual enhancements, UI polish, and dashboard widgets for Request Tracker 6
+
+=head1 DESCRIPTION
+
+Consolidates all custom visual improvements and dashboard widgets for RT 6
+into a single installable extension. Replaces the following standalone
+extensions: C<RT-Extension-ArticlesWidget>, C<RT-Extension-AssetsWidget>,
+C<RT-Extension-ClockWidget>, C<rt-extension-public-holidays>,
+C<RT-Extension-UserProfileWidget>, C<RT-Extension-WeatherWidget>.
+
+=head2 Visual Enhancements
+
+=over 4
+
+=item * Bootstrap Icons loaded globally (via CDN) with section icons on ticket,
+asset and article widgets
+
+=item * Coloured icons for the main navigation menu
+
+=item * Ticket list column enhancements: owner highlighted in colour, status
+badge with "New Reply" indicator, due-date and SLA coloured badges, pending
+ticket badge, avatar thumbnails for requestor / CC / AdminCC columns
+
+=item * Due-date colour coding on the ticket display widget (AfterDue callback)
+
+=item * SLA colour coding on the ticket display widget (ShowBasics callback)
+
+=item * Article card styling (hover accent border, 2-line summary clamp, empty
+state icon)
+
+=item * Action-results and dependency-status banner styling
+
+=item * Priority badge colours (low / medium / high / on_fire)
+
+=back
+
+=head2 Dashboard Widgets
+
+=over 4
+
+=item * B<ClockWidget> — analogue flip clock showing local time
+
+=item * B<WeatherWidget> — live weather from Open-Meteo, geocoded via the
+user's City / Zip / Country profile fields
+
+=item * B<ArticlesWidget> — 5 newest knowledge-base articles
+
+=item * B<AssetsWidget> — 5 most recently updated active assets
+
+=item * B<UserProfileWidget> — current user's profile card with photo and
+contact details
+
+=item * B<TodaysHolidays> — worldwide public holidays for today from a
+bundled CSV dataset; also shows a banner on the RT login page
+
+=back
+
+=head2 Ticket Display Widgets
+
+=over 4
+
+=item * B<LinkedArticles> — sidebar widget on the ticket display page listing
+all articles linked to the current ticket (name, class, summary). The widget
+is hidden when no articles are linked and refreshes automatically via HTMX
+when links change.
+
+=back
+
+=head1 INSTALLATION
+
+    perl Makefile.PL
+    make
+    sudo make install
+
+=head2 Register the plugin
+
+Add to F</opt/rt6/etc/RT_SiteConfig.pm>:
+
+    Plugin('RT::Extension::BeautifyUI');
+
+All dashboard widgets are registered automatically. No manual
+C<HomepageComponents> change is required.
+
+=head2 Deploy the holidays CSV
+
+    cp /opt/rt6/local/plugins/RT-Extension-BeautifyUI/etc/holidays-worldwide.csv \
+       /opt/rt6/local/etc/holidays-worldwide.csv
+
+=head2 Optional configuration
+
+    # Temperature unit for WeatherWidget (default: celsius)
+    Set(%WeatherWidgetOptions,
+        TemperatureUnit => 'celsius',   # or 'fahrenheit'
+    );
+
+    # Custom path for the holidays CSV (default: $RT::LocalEtcPath/holidays-worldwide.csv)
+    Set($HolidaysCSVPath, '/opt/rt6/local/etc/holidays-worldwide.csv');
+
+=head2 Clear cache and restart
+
+    sudo systemctl stop apache2
+    sudo rm -rf /opt/rt6/var/mason_data/obj/*
+    sudo systemctl start apache2
+
+=head1 MIGRATION FROM STANDALONE EXTENSIONS
+
+If you previously loaded the individual extensions, remove them from your
+C<RT_SiteConfig.pm> Plugin list and from C<HomepageComponents> (now managed
+automatically by this extension):
+
+    # Remove from RT_SiteConfig.pm:
+    Plugin('RT::Extension::ClockWidget');
+    Plugin('RT::Extension::WeatherWidget');
+    Plugin('RT::Extension::ArticlesWidget');
+    Plugin('RT::Extension::AssetsWidget');
+    Plugin('RT::Extension::UserProfileWidget');
+    Plugin('RT::Extension::PublicHolidays');
+
+=head1 MIGRATION FROM LocalEnhancements
+
+If you previously loaded C<local-ticket-icons.css> via a C<MassageCSSFiles>
+callback in C<LocalEnhancements>, remove that callback and the standalone CSS
+file — this extension replaces both.
+
+The ColumnMap, ShowBasics/EndOfList and ShowDates/AfterDue callbacks previously
+living under C<LocalEnhancements> are now provided by this extension under the
+C<BeautifyUI> namespace. Remove the old C<LocalEnhancements> copies to avoid
+duplicate application.
+
+=head1 UPDATING THE HOLIDAYS DATA
+
+    /opt/rt6/local/plugins/RT-Extension-BeautifyUI/bin/rt-update-public-holidays \
+        --csv /opt/rt6/local/etc/holidays-worldwide.csv
+
+=head1 AUTHOR
+
+Torsten Brumm
+
+=head1 LICENSE
+
+GNU General Public License v2
+
+=cut
+
+1;

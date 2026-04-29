@@ -1,0 +1,513 @@
+#!/usr/bin/env perl
+# rt-update-public-holidays — Manage the holidays-worldwide.csv data file
+#
+# Usage:
+#   rt-update-public-holidays --stats
+#   rt-update-public-holidays --validate
+#   rt-update-public-holidays --sort [--output FILE]
+#   rt-update-public-holidays --fetch [--year YEAR] [--country CC,...] [--output FILE]
+
+use strict;
+use warnings;
+use 5.010;
+
+use FindBin qw($Bin);
+use Getopt::Long qw(:config no_ignore_case bundling);
+use Pod::Usage;
+use POSIX        qw(strftime);
+use File::Temp   qw(tempfile);
+use HTTP::Tiny;
+use JSON::PP;
+
+# ---------------------------------------------------------------------------
+# Resolve default CSV path:
+#   1. $RT::LocalEtcPath if RT is installed and loadable
+#   2. ../etc/ relative to this script (development / repo checkout)
+# ---------------------------------------------------------------------------
+my $default_csv = do {
+    my $rt_path = eval {
+        require RT;
+        RT->LoadConfig;
+        $RT::LocalEtcPath . '/holidays-worldwide.csv';
+    };
+    $rt_path || "$Bin/../etc/holidays-worldwide.csv";
+};
+
+# ---------------------------------------------------------------------------
+# Options
+# ---------------------------------------------------------------------------
+my %opt = (
+    year    => ( localtime )[5] + 1900,
+    verbose => 0,
+);
+GetOptions(
+    \%opt,
+    'validate|v',
+    'stats|s',
+    'fetch|f',
+    'sort',
+    'year|y=i',
+    'country|c=s',
+    'csv=s',
+    'output|o=s',
+    'verbose',
+    'help|h',
+) or pod2usage(2);
+
+pod2usage( -verbose => 2, -exitval => 0 ) if $opt{help};
+
+unless ( $opt{validate} || $opt{stats} || $opt{fetch} || $opt{sort} ) {
+    pod2usage( -message => "No action specified. Use --validate, --stats, --fetch, or --sort.\n",
+               -exitval => 1 );
+}
+
+my $csv_file = $opt{csv} || $default_csv;
+
+unless ( -f $csv_file ) {
+    die "CSV file not found: $csv_file\n"
+      . "Use --csv to specify its location.\n";
+}
+
+# ---------------------------------------------------------------------------
+# Load CSV
+# ---------------------------------------------------------------------------
+my @rows;    # each: { date, name, countries, type, desc, _line }
+my @header;
+
+{
+    open my $fh, '<:encoding(UTF-8)', $csv_file
+        or die "Cannot read $csv_file: $!\n";
+    my $first = <$fh>;
+    chomp $first;
+    @header = csv_split($first);
+    while ( my $line = <$fh> ) {
+        chomp $line;
+        next unless length $line;
+        my @f = csv_split($line);
+        next unless @f >= 5;
+        push @rows, {
+            date      => $f[0],
+            name      => $f[1],
+            countries => $f[2],
+            type      => $f[3],
+            desc      => $f[4],
+            _raw      => $line,
+        };
+    }
+    close $fh;
+}
+
+say "Loaded " . scalar(@rows) . " entries from $csv_file" if $opt{verbose};
+
+# ---------------------------------------------------------------------------
+# Actions
+# ---------------------------------------------------------------------------
+do_validate() if $opt{validate};
+do_stats()    if $opt{stats};
+do_sort()     if $opt{sort};
+do_fetch()    if $opt{fetch};
+
+exit 0;
+
+# ===========================================================================
+# --validate
+# ===========================================================================
+sub do_validate {
+    say "\n=== Validating $csv_file ===";
+    my $errors = 0;
+    my %seen_dates;
+    my @valid_types = qw(
+        National\ Holiday  Religious\ Holiday  Cultural\ Holiday
+        International\ Holiday  Political\ Holiday  Commemoration
+        Cultural\ Tradition  Regional\ Holiday
+    );
+
+    my $sep = "\x{00b7}";
+
+    for my $i ( 0 .. $#rows ) {
+        my $r    = $rows[$i];
+        my $line = $i + 2;    # +1 for 1-based, +1 for header
+
+        # Date format
+        unless ( $r->{date} =~ /^\d{2}-\d{2}(?:\/\d{2})?$/ || $r->{date} =~ /^variabel/ ) {
+            warn "  Line $line: unexpected date format: '$r->{date}'\n";
+            $errors++;
+        }
+
+        # Non-empty required fields
+        for my $field (qw(name countries type)) {
+            unless ( length $r->{$field} ) {
+                warn "  Line $line: empty field '$field'\n";
+                $errors++;
+            }
+        }
+
+        # Check middle-dot consistency in multi-entries
+        # Mismatch is a warning, not an error — the widget gracefully falls back
+        # to showing the single description when counts differ.
+        my @names = split /\s*\Q$sep\E\s*/, $r->{name};
+        my @descs = split /\s*\Q$sep\E\s*/, $r->{desc};
+        if ( @names > 1 && @descs > 1 && @names != @descs ) {
+            warn "  Line $line: name has " . scalar(@names) . " parts but desc has "
+               . scalar(@descs) . " — consider aligning counts for per-entry descriptions\n";
+        }
+
+        # Duplicate date+name+countries (same holiday same day same country set)
+        my $key = lc("$r->{date}|$r->{name}|$r->{countries}");
+        if ( $seen_dates{$key}++ ) {
+            warn "  Line $line: duplicate entry for '$r->{date} / $r->{name} / $r->{countries}'\n";
+            $errors++;
+        }
+    }
+
+    if ($errors) {
+        say "$errors problem(s) found.";
+    } else {
+        say "OK — no issues found.";
+    }
+}
+
+# ===========================================================================
+# --stats
+# ===========================================================================
+sub do_stats {
+    say "\n=== Statistics for $csv_file ===";
+
+    my %by_type;
+    my %by_country;
+    my $sep = "\x{00b7}";
+
+    for my $r (@rows) {
+        $by_type{ $r->{type} }++;
+        for my $c ( split /\s*\Q$sep\E\s*/, $r->{countries} ) {
+            $c =~ s/\s*\([^)]*\)//g;
+            $c =~ s/^\s+|\s+$//g;
+            $by_country{$c}++ if length $c;
+        }
+    }
+
+    printf "  Total entries : %d\n", scalar @rows;
+    printf "  Countries     : %d\n", scalar keys %by_country;
+    printf "  Types         : %d\n", scalar keys %by_type;
+
+    say "\n  By type:";
+    for my $t ( sort { $by_type{$b} <=> $by_type{$a} } keys %by_type ) {
+        printf "    %-40s %d\n", $t, $by_type{$t};
+    }
+
+    say "\n  Top 20 countries by entry count:";
+    my $rank = 0;
+    for my $c ( sort { $by_country{$b} <=> $by_country{$a} } keys %by_country ) {
+        printf "    %-30s %d\n", $c, $by_country{$c};
+        last if ++$rank >= 20;
+    }
+}
+
+# ===========================================================================
+# --sort
+# ===========================================================================
+sub do_sort {
+    say "\n=== Sorting entries by date ===";
+
+    # Fixed MM-DD dates sort normally; "variabel" entries go at the end
+    my @sorted = sort {
+        my ( $da, $db ) = ( $a->{date}, $b->{date} );
+        my $va = ( $da =~ /^variabel/ ) ? 1 : 0;
+        my $vb = ( $db =~ /^variabel/ ) ? 1 : 0;
+        return $va <=> $vb if $va != $vb;
+        $da cmp $db;
+    } @rows;
+
+    write_csv( \@sorted );
+}
+
+# ===========================================================================
+# --fetch
+# ===========================================================================
+# Fetches from the Nager.Date public API (https://date.nager.at/api/v3)
+# and reports holidays not yet present in the CSV.
+# With --output, merges new entries into a new file.
+# ===========================================================================
+sub do_fetch {
+    my $year = $opt{year};
+
+    # Default country list — covers the most common countries
+    my @countries = $opt{country}
+        ? split /,/, uc( $opt{country} )
+        : qw(
+            AD AO AR AT AU AZ BA BE BG BO BR BY CA CH CL CN CO CR CU CY CZ
+            DE DK DO EC EE EG ES ET FI FJ FR GA GE GH GR GT HN HR HT HU ID
+            IE IL IN IQ IS IT JM JP KE KH KR KW KZ LA LB LI LK LT LU LV MA
+            MD ME MG MK ML MT MX MY NA NG NI NL NO NP NZ OM PA PE PH PL PT
+            PY QA RO RS RU RW SA SE SG SI SK SN SV TN TR TT TW TZ UA UG US
+            UY UZ VE VN YE ZA ZM ZW
+        );
+
+    say "\n=== Fetching holidays for $year from Nager.Date API ===";
+    say "Countries: " . join( ', ', @countries );
+
+    my $http    = HTTP::Tiny->new( timeout => 15 );
+    my $json    = JSON::PP->new->utf8;
+    my $sep     = "\x{00b7}";
+    my $new_count = 0;
+
+    # Build lookup of existing entries: "MM-DD|lcname" → 1
+    my %existing;
+    for my $r (@rows) {
+        my $key = lc( "$r->{date}|$r->{name}" );
+        $existing{$key} = 1;
+    }
+
+    my @new_rows;
+
+    for my $cc (@countries) {
+        my $url = "https://date.nager.at/api/v3/PublicHolidays/$year/$cc";
+        my $res = $http->get($url);
+
+        unless ( $res->{success} ) {
+            warn "  SKIP $cc: HTTP $res->{status} $res->{reason}\n" if $opt{verbose};
+            next;
+        }
+
+        my $holidays = eval { $json->decode( $res->{content} ) };
+        if ($@) {
+            warn "  SKIP $cc: JSON parse error\n";
+            next;
+        }
+
+        for my $h (@$holidays) {
+            # date: "2026-01-01" → "01-01"
+            my ($mm, $dd) = ( $h->{date} =~ /^\d{4}-(\d{2})-(\d{2})$/ );
+            next unless $mm && $dd;
+            my $date = "$mm-$dd";
+            my $name = $h->{name} // $h->{localName} // next;
+
+            # Skip if already in CSV (case-insensitive name + date match)
+            next if $existing{ lc("$date|$name") };
+
+            # Map Nager types to our type strings
+            my @htypes = @{ $h->{types} // [] };
+            my $type = _map_nager_type( \@htypes, $h->{global} // 1 );
+
+            # Determine scope
+            my $country_name = _cc_to_name($cc) // $cc;
+            my $desc = $h->{localName} && $h->{localName} ne $name
+                     ? "$h->{localName} ($country_name)"
+                     : $country_name;
+
+            printf "  NEW  %s  %-35s  %s  [%s]\n", $date, $name, $country_name, $type;
+            $new_count++;
+
+            push @new_rows, {
+                date      => $date,
+                name      => $name,
+                countries => $country_name,
+                type      => $type,
+                desc      => $desc,
+            };
+        }
+    }
+
+    say "\nFound $new_count new holiday(s) not in CSV.";
+
+    if ( $new_count && $opt{output} ) {
+        my @merged = sort {
+            my $va = ( $a->{date} =~ /^variabel/ ) ? 1 : 0;
+            my $vb = ( $b->{date} =~ /^variabel/ ) ? 1 : 0;
+            return $va <=> $vb if $va != $vb;
+            $a->{date} cmp $b->{date};
+        } ( @rows, @new_rows );
+        write_csv( \@merged );
+        say "Wrote merged CSV to $opt{output}.";
+    } elsif ($new_count) {
+        say "Run with --output FILE to write a merged CSV including the new entries.";
+    }
+}
+
+sub _map_nager_type {
+    my ( $types, $global ) = @_;
+    my %t = map { lc($_) => 1 } @{$types};
+    return 'International Holiday' if !$global;
+    return 'National Holiday'      if $t{public} || $t{authorities} || $t{bank};
+    return 'Cultural Holiday'      if $t{optional} || $t{observance};
+    return 'Regional Holiday'      if $t{school};
+    return 'National Holiday';
+}
+
+# Minimal CC → name table (supplement to the built-in table in the Mason components)
+my %CC_NAME = (
+    AD=>'Andorra',AO=>'Angola',AR=>'Argentina',AT=>'Austria',AU=>'Australia',
+    AZ=>'Azerbaijan',BA=>'Bosnia',BE=>'Belgium',BG=>'Bulgaria',BO=>'Bolivia',
+    BR=>'Brazil',BY=>'Belarus',CA=>'Canada',CH=>'Switzerland',CL=>'Chile',
+    CN=>'China',CO=>'Colombia',CR=>'Costa Rica',CU=>'Cuba',CY=>'Cyprus',
+    CZ=>'Czech Republic',DE=>'Germany',DK=>'Denmark',DO=>'Dominican Republic',
+    EC=>'Ecuador',EE=>'Estonia',EG=>'Egypt',ES=>'Spain',ET=>'Ethiopia',
+    FI=>'Finland',FJ=>'Fiji',FR=>'France',GA=>'Gabon',GE=>'Georgia',
+    GH=>'Ghana',GR=>'Greece',GT=>'Guatemala',HN=>'Honduras',HR=>'Croatia',
+    HT=>'Haiti',HU=>'Hungary',ID=>'Indonesia',IE=>'Ireland',IL=>'Israel',
+    IN=>'India',IQ=>'Iraq',IS=>'Iceland',IT=>'Italy',JM=>'Jamaica',
+    JP=>'Japan',KE=>'Kenya',KH=>'Cambodia',KR=>'South Korea',KW=>'Kuwait',
+    KZ=>'Kazakhstan',LA=>'Laos',LB=>'Lebanon',LI=>'Liechtenstein',
+    LK=>'Sri Lanka',LT=>'Lithuania',LU=>'Luxembourg',LV=>'Latvia',
+    MA=>'Morocco',MD=>'Moldova',ME=>'Montenegro',MG=>'Madagascar',
+    MK=>'North Macedonia',ML=>'Mali',MT=>'Malta',MX=>'Mexico',
+    MY=>'Malaysia',NA=>'Namibia',NG=>'Nigeria',NI=>'Nicaragua',
+    NL=>'Netherlands',NO=>'Norway',NP=>'Nepal',NZ=>'New Zealand',
+    OM=>'Oman',PA=>'Panama',PE=>'Peru',PH=>'Philippines',PL=>'Poland',
+    PT=>'Portugal',PY=>'Paraguay',QA=>'Qatar',RO=>'Romania',RS=>'Serbia',
+    RU=>'Russia',RW=>'Rwanda',SA=>'Saudi Arabia',SE=>'Sweden',
+    SG=>'Singapore',SI=>'Slovenia',SK=>'Slovakia',SN=>'Senegal',
+    SV=>'El Salvador',TN=>'Tunisia',TR=>'Turkey',TT=>'Trinidad and Tobago',
+    TW=>'Taiwan',TZ=>'Tanzania',UA=>'Ukraine',UG=>'Uganda',US=>'United States',
+    UY=>'Uruguay',UZ=>'Uzbekistan',VE=>'Venezuela',VN=>'Vietnam',
+    YE=>'Yemen',ZA=>'South Africa',ZM=>'Zambia',ZW=>'Zimbabwe',
+);
+
+sub _cc_to_name { $CC_NAME{ uc( $_[0] ) } }
+
+# ===========================================================================
+# Helpers
+# ===========================================================================
+sub write_csv {
+    my ($rows_ref) = @_;
+    my $out = $opt{output} || $csv_file;
+    open my $fh, '>:encoding(UTF-8)', $out
+        or die "Cannot write $out: $!\n";
+    print $fh join( ',', @header ) . "\n";
+    for my $r (@$rows_ref) {
+        print $fh csv_row( $r->{date}, $r->{name}, $r->{countries},
+                           $r->{type}, $r->{desc} ) . "\n";
+    }
+    close $fh;
+    say "Written: $out (" . scalar(@$rows_ref) . " entries)";
+}
+
+sub csv_row {
+    my @fields = @_;
+    return join ',', map { /[,"\n]/ ? qq("$_") : $_ } @fields;
+}
+
+sub csv_split {
+    my ($line) = @_;
+    my @fields;
+    while ( length $line ) {
+        if ( $line =~ s/^"((?:[^"]|"")*)"(?:,|$)// ) {
+            my $v = $1; $v =~ s/""/"/g; push @fields, $v;
+        } elsif ( $line =~ s/^([^,]*)(?:,|$)// ) {
+            push @fields, $1;
+        } else { last }
+    }
+    return @fields;
+}
+
+__END__
+
+=head1 NAME
+
+rt-update-public-holidays - Manage the holidays-worldwide.csv data file
+
+=head1 SYNOPSIS
+
+  rt-update-public-holidays --stats
+  rt-update-public-holidays --validate
+  rt-update-public-holidays --sort [--output FILE]
+  rt-update-public-holidays --fetch [--year YEAR] [--country CC,...] [--output FILE]
+
+  # Examples
+  rt-update-public-holidays --stats
+  rt-update-public-holidays --validate --csv /opt/rt6/local/etc/holidays-worldwide.csv
+  rt-update-public-holidays --sort --output holidays-sorted.csv
+  rt-update-public-holidays --fetch --year 2027 --output holidays-2027.csv
+  rt-update-public-holidays --fetch --country DE,AT,CH --output dach.csv
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<--validate>, B<-v>
+
+Check the CSV for format errors: missing fields, date format problems,
+mismatched middle-dot counts in consolidated entries, and duplicate rows.
+
+=item B<--stats>, B<-s>
+
+Print a summary: total entries, number of distinct countries, breakdown
+by holiday type, and the 20 most-represented countries.
+
+=item B<--sort>
+
+Sort all entries by date (MM-DD, ascending). Variable-date entries go last.
+Writes to the original file unless B<--output> is specified.
+
+=item B<--fetch>, B<-f>
+
+Query the Nager.Date public API (https://date.nager.at) for the given year
+and report holidays that are not yet in the CSV. With B<--output>, writes a
+merged file containing both the existing entries and the new ones.
+
+Requires network access. Uses only core Perl modules (HTTP::Tiny, JSON::PP).
+
+=item B<--year> I<YEAR>, B<-y> I<YEAR>
+
+Year to fetch (default: current year). Used with B<--fetch>.
+
+=item B<--country> I<CC,...>, B<-c> I<CC,...>
+
+Comma-separated list of ISO 3166-1 alpha-2 country codes to fetch
+(e.g. C<DE,AT,CH>). Defaults to a built-in list of ~100 countries.
+
+=item B<--csv> I<FILE>
+
+Path to the CSV data file.
+Default: C<$RT::LocalEtcPath/holidays-worldwide.csv>, or
+C<../etc/holidays-worldwide.csv> relative to this script when running
+from a repository checkout.
+
+=item B<--output> I<FILE>, B<-o> I<FILE>
+
+Write the result to this file instead of modifying the source CSV in place.
+When omitted with B<--sort>, the source file is updated directly.
+
+=item B<--verbose>
+
+Print additional progress information.
+
+=item B<--help>, B<-h>
+
+Show this help.
+
+=back
+
+=head1 DESCRIPTION
+
+This script manages the C<holidays-worldwide.csv> data file used by the
+RT-Extension-Public-Holidays extension.
+
+=head2 Typical update workflow
+
+  # 1. Check the current state
+  rt-update-public-holidays --stats
+
+  # 2. Validate for format errors
+  rt-update-public-holidays --validate
+
+  # 3. Fetch new holidays from the API into a review file
+  rt-update-public-holidays --fetch --year 2027 --output /tmp/new.csv
+
+  # 4. Review /tmp/new.csv, edit as needed, then deploy
+  cp /tmp/new.csv /opt/rt6/local/etc/holidays-worldwide.csv
+
+=head1 API
+
+Holiday data is fetched from the B<Nager.Date> API (L<https://date.nager.at>),
+which is free, requires no API key, and covers ~100 countries.
+
+=head1 AUTHOR
+
+Torsten Brumm
+
+=head1 LICENSE
+
+GNU General Public License v2.0
+
+=cut

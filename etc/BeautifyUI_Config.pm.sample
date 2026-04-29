@@ -1,0 +1,11 @@
+# RT-Extension-BeautifyUI — sample configuration
+# Copy the relevant lines into /opt/rt6/etc/RT_SiteConfig.pm
+
+# Temperature unit for the WeatherWidget (default: celsius)
+Set(%WeatherWidgetOptions,
+    TemperatureUnit => 'celsius',   # or 'fahrenheit'
+);
+
+# Custom path for the holidays CSV
+# Default: $RT::LocalEtcPath/holidays-worldwide.csv
+Set($HolidaysCSVPath, '/opt/rt6/local/etc/holidays-worldwide.csv');

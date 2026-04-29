@@ -1,0 +1,130 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Weather"
+msgstr "Weather"
+
+msgid "No location stored in user profile."
+msgstr "No location stored in user profile."
+
+msgid "Edit profile"
+msgstr "Edit profile"
+
+msgid "Loading weather data..."
+msgstr "Loading weather data..."
+
+msgid "Retry"
+msgstr "Retry"
+
+msgid "Clear Sky"
+msgstr "Clear Sky"
+
+msgid "Mainly Clear"
+msgstr "Mainly Clear"
+
+msgid "Partly Cloudy"
+msgstr "Partly Cloudy"
+
+msgid "Overcast"
+msgstr "Overcast"
+
+msgid "Fog"
+msgstr "Fog"
+
+msgid "Rime Fog"
+msgstr "Rime Fog"
+
+msgid "Light Drizzle"
+msgstr "Light Drizzle"
+
+msgid "Moderate Drizzle"
+msgstr "Moderate Drizzle"
+
+msgid "Heavy Drizzle"
+msgstr "Heavy Drizzle"
+
+msgid "Light Freezing Drizzle"
+msgstr "Light Freezing Drizzle"
+
+msgid "Heavy Freezing Drizzle"
+msgstr "Heavy Freezing Drizzle"
+
+msgid "Light Rain"
+msgstr "Light Rain"
+
+msgid "Moderate Rain"
+msgstr "Moderate Rain"
+
+msgid "Heavy Rain"
+msgstr "Heavy Rain"
+
+msgid "Light Freezing Rain"
+msgstr "Light Freezing Rain"
+
+msgid "Heavy Freezing Rain"
+msgstr "Heavy Freezing Rain"
+
+msgid "Light Snow"
+msgstr "Light Snow"
+
+msgid "Moderate Snow"
+msgstr "Moderate Snow"
+
+msgid "Heavy Snow"
+msgstr "Heavy Snow"
+
+msgid "Snow Grains"
+msgstr "Snow Grains"
+
+msgid "Light Showers"
+msgstr "Light Showers"
+
+msgid "Moderate Showers"
+msgstr "Moderate Showers"
+
+msgid "Heavy Showers"
+msgstr "Heavy Showers"
+
+msgid "Light Snow Showers"
+msgstr "Light Snow Showers"
+
+msgid "Heavy Snow Showers"
+msgstr "Heavy Snow Showers"
+
+msgid "Thunderstorm"
+msgstr "Thunderstorm"
+
+msgid "Thunderstorm with Hail"
+msgstr "Thunderstorm with Hail"
+
+msgid "Thunderstorm with Heavy Hail"
+msgstr "Thunderstorm with Heavy Hail"
+
+msgid "Clear Night"
+msgstr "Clear Night"
+
+msgid "Unknown"
+msgstr "Unknown"
+
+msgid "Feels like"
+msgstr "Feels like"
+
+msgid "Updated"
+msgstr "Updated"
+
+msgid "Timeout - weather data could not be retrieved."
+msgstr "Timeout - weather data could not be retrieved."
+
+msgid "Location could not be found."
+msgstr "Location could not be found."
+
+msgid "Geocoding failed."
+msgstr "Geocoding failed."
+
+msgid "Weather data could not be loaded."
+msgstr "Weather data could not be loaded."
+
+msgid "Internal error."
+msgstr "Internal error."

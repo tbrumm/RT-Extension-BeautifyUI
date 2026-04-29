@@ -1,0 +1,25 @@
+# Version control
+^\.git/
+\.gitignore
+
+# Build artifacts
+^blib/
+^inc/
+^_build/
+^Build$
+^Makefile$
+^MYMETA\.(yml|json)$
+^RT-Extension-BeautifyUI-.*\.tar\.gz$
+
+# Editor and OS
+\.swp$
+\.swo$
+~$
+\.DS_Store
+^\.idea/
+
+# Test output
+^t/.*\.t~
+
+# PO compiled files
+\.mo$

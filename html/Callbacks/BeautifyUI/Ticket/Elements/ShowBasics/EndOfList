@@ -1,0 +1,64 @@
+<%ARGS>
+$TicketObj => undef
+</%ARGS>
+<%INIT>
+return unless $TicketObj;
+
+my $status_class;
+my $lc     = $TicketObj->LifecycleObj;
+my $status = $TicketObj->Status;
+unless ( $lc->StatusColor($status) ) {
+    $status_class = $lc->IsInactive($status) ? 'status-inactive'
+                  : $lc->IsInitial($status)  ? 'status-initial'
+                  :                            'status-active';
+}
+
+my $sla_class;
+unless ( $TicketObj->QueueObj->SLADisabled ) {
+    my $level = $TicketObj->SLA;
+    if ( defined $level && length $level ) {
+        my $agreements = RT->Config->Get('ServiceAgreements');
+        if ( $agreements && $agreements->{Levels} ) {
+            my %resolve_times;
+            for my $lvl ( keys %{ $agreements->{Levels} } ) {
+                my $res = $agreements->{Levels}{$lvl}{Resolve};
+                $resolve_times{$lvl} = $res->{BusinessMinutes}
+                    if $res && defined $res->{BusinessMinutes};
+            }
+            if (%resolve_times) {
+                my @sorted = sort { $resolve_times{$a} <=> $resolve_times{$b} } keys %resolve_times;
+                my $last   = $#sorted;
+                my %color_map;
+                for my $i ( 0 .. $last ) {
+                    my $pct = $last > 0 ? $i / $last : 0;
+                    $color_map{ $sorted[$i] }
+                        = $pct < 0.25 ? 'sla-critical'
+                        : $pct < 0.50 ? 'sla-warning'
+                        :               'sla-ok';
+                }
+                $sla_class = $color_map{$level} // 'sla-ok';
+            }
+        }
+    }
+}
+
+return unless $status_class || $sla_class;
+</%INIT>
+% if ($status_class) {
+<script>(function(){
+  var el = document.querySelector('.ticket-info-basics .status .current-value');
+  if (el && !el.querySelector('.badge')) {
+    var b = document.createElement('span');
+    b.className = 'badge <% $status_class |h %>';
+    b.textContent = el.textContent.trim();
+    el.textContent = '';
+    el.appendChild(b);
+  }
+})();</script>
+% }
+% if ($sla_class) {
+<script>(function(){
+  var el = document.querySelector('.sla .current_value');
+  if (el) { el.classList.add('<% $sla_class |h %>'); }
+})();</script>
+% }

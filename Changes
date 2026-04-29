@@ -1,0 +1,31 @@
+Revision history for RT-Extension-BeautifyUI
+
+2.0.0  2026-04-28
+  - Mega-consolidation: absorbs six formerly standalone extensions
+  - Integrated ClockWidget (flip clock dashboard widget)
+  - Integrated WeatherWidget (live Open-Meteo weather, 12 language PO files)
+  - Integrated ArticlesWidget (5 newest knowledge-base articles)
+  - Integrated AssetsWidget (5 most recently updated active assets with Held By)
+  - Integrated UserProfileWidget (profile card with gradient banner, avatar,
+    contact info)
+  - Integrated TodaysHolidays dashboard widget and login-page banner
+    (holidays-worldwide.csv with ~280 entries, rt-update-public-holidays script)
+  - All HomepageComponents registered automatically in BeautifyUI.pm
+  - Added etc/BeautifyUI_Config.pm.sample covering WeatherWidget and
+    HolidaysCSVPath options
+  - VERSION bumped to 2.0.0
+
+1.0.0  2026-04-28
+  - Initial release — consolidates all local UI/design enhancements
+  - Bootstrap Icons 1.11.3 loaded globally via CDN
+  - Section icons on ticket, asset and article display widgets
+  - Coloured icons for the main navigation menu
+  - ColumnMap/Once: owner colour (red=nobody, green=self), status+NewReply
+    badge, due-date and SLA coloured badges, pending-ticket badge,
+    avatar thumbnails for requestor/CC/AdminCC columns
+  - AfterDue callback: due-date colour coding on ticket display widget
+  - EndOfList callback: SLA colour coding on ticket display widget
+  - Article card styling (hover accent, 2-line summary clamp, empty state)
+  - Action-results and dependency-status banner styling
+  - Priority badge colours (low/medium/high/on_fire)
+  - Compatible with RT 5.0+ / RT 6
