@@ -5,8 +5,6 @@ Visual enhancements, UI polish, and dashboard widgets for Request Tracker 6.
 A living extension — new features and improvements are added continuously
 as the RT 6 environment evolves. Consider it a permanent work in progress.
 
-![Beauty of Dashboards](screenshots/DashBoardBeauty.png)
-
 ## Features
 
 ### Icons
