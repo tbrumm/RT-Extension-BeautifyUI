@@ -173,6 +173,26 @@ directly on the ticket page — no portlet configuration needed.
 
 ![LinkedArticles ticket display widget](screenshots/LinkedArticles.png)
 
+### FeedWidget
+
+A tab-based RSS and ATOM feed reader for any dashboard or home page. Each user
+configures their own list of feeds on the **Preferences → About Me** page.
+
+- Supports RSS 2.0, RSS 1.0, and ATOM (including namespaced variants)
+- Feeds are fetched by the RT server — no browser CORS restrictions
+- 15-minute session cache per feed URL to reduce outbound requests
+- Per-feed item limit (1–50, default 10)
+- Adapts to RT light / dark / KN / Terminal themes via Bootstrap CSS variables
+- HTMX-powered preferences form — saves without a full page reload
+- No `%ReferrerComponents` configuration needed — applied automatically
+
+**Requirements:** The RT server must have outbound HTTP/HTTPS access to the
+configured feed URLs.
+
+![Feed Reader dashboard widget with tabs and feed items](screenshots/RSS_Feed_Widget.png)
+
+![Feed configuration on the About Me preferences page](screenshots/RSS_Feed_Admin.png)
+
 ### TodaysHolidays
 
 Shows today's worldwide public holidays on any dashboard. Also injects a
@@ -190,9 +210,12 @@ banner above the RT login form on days with matching holidays.
 ## Requirements
 
 - Request Tracker 6.0.2 or later
+- Perl modules: `LWP::UserAgent`, `XML::LibXML` (required for FeedWidget;
+  usually pre-installed on RT servers)
 - Internet access for Bootstrap Icons CDN (or self-host and adjust the
   `@import` URL in `beautify-ui.css`)
 - For WeatherWidget: browser outbound HTTPS to Open-Meteo and Nominatim
+- For FeedWidget: server outbound HTTP/HTTPS to the configured feed URLs
 
 ## Installation
 
@@ -217,8 +240,9 @@ Add to `/opt/rt6/etc/RT_SiteConfig.pm`:
 Plugin('RT::Extension::BeautifyUI');
 ```
 
-All dashboard widgets are registered automatically — no `HomepageComponents`
-change needed.
+All dashboard widgets including FeedWidget are registered automatically — no
+`HomepageComponents` change needed. The CSRF whitelist for FeedWidget endpoints
+is also applied automatically; no `%ReferrerComponents` entry required.
 
 ### Optional configuration
 
@@ -241,6 +265,18 @@ sudo systemctl stop apache2
 sudo rm -rf /opt/rt6/var/mason_data/obj/*
 sudo systemctl start apache2
 ```
+
+### Migrating from RT-Extension-FeedWidget
+
+If you previously ran the standalone `RT-Extension-FeedWidget`:
+
+1. Remove `Plugin('RT::Extension::FeedWidget');` from `RT_SiteConfig.pm`
+2. Remove the manual `%ReferrerComponents` entries for the feed endpoints
+3. Leave the `FeedWidget` entry in `HomepageComponents` in place, or let
+   BeautifyUI manage it automatically (duplicate entries are harmless)
+
+User feed data is stored in the RT user attribute `FeedWidgetFeeds` and is
+read by the same key — no data migration needed.
 
 ---
 
@@ -273,6 +309,21 @@ Date,Holiday,Countries,Type,Description
 ---
 
 ## Changelog
+
+### 2.2.0
+
+**FeedWidget — RSS/ATOM Feed Reader**
+
+- New dashboard widget: tab-based RSS/ATOM feed reader (`html/Elements/FeedWidget`)
+- New preferences panel on About Me page (`html/Callbacks/BeautifyUI/Prefs/AboutMe.html/FormEnd`)
+- New server-side fetch endpoint (`html/FeedWidget/Fetch.html`) — validates feed URL
+  against user's configured list, 15-minute session cache
+- New HTMX save endpoint (`html/FeedWidget/SaveFeeds.html`) — returns updated card fragment
+- `BeautifyUI.pm`: added `GetUserFeeds`, `SetUserFeeds`, `FetchFeed` and XML parsing
+  helpers; `FeedWidget` added to auto-registered `HomepageComponents`;
+  `%ReferrerComponents` for feed endpoints set automatically
+- `Makefile.PL`: added `LWP::UserAgent` and `XML::LibXML` dependencies
+- Absorbs `RT-Extension-FeedWidget` standalone
 
 ### 2.1.0
 

@@ -1,5 +1,25 @@
 Revision history for RT-Extension-BeautifyUI
 
+2.2.0  2026-05-04
+  - Integrated FeedWidget (RSS/ATOM feed reader dashboard widget)
+  - Per-user feed configuration on Prefs/AboutMe.html (FormEnd callback)
+  - Server-side feed fetching via LWP::UserAgent + XML::LibXML
+  - 15-minute session cache per feed URL
+  - Tab-based multi-feed display; adapts to all RT 6 themes
+  - HTMX-powered preferences form (no page reload on save)
+  - FeedWidget auto-registered in HomepageComponents
+  - ReferrerComponents for feed endpoints applied automatically in BeautifyUI.pm
+  - Absorbs RT-Extension-FeedWidget standalone
+
+2.1.0  2026-05-03
+  - Added LinkedArticles ticket display widget
+  - html/Ticket/Widgets/Display/LinkedArticles: widget registration with
+    PreCheck method hiding the widget when no articles are linked
+  - html/Ticket/Elements/ShowLinkedArticles: Bootstrap card list of linked
+    articles (name, class badge, summary); auto-refreshes via HTMX on
+    ticketLinksChanged event
+  - Makefile.PL: minimum RT version raised from 5.0.0 to 6.0.2
+
 2.0.0  2026-04-28
   - Mega-consolidation: absorbs six formerly standalone extensions
   - Integrated ClockWidget (flip clock dashboard widget)

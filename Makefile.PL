@@ -5,6 +5,8 @@ author('Torsten Brumm');
 version_from('lib/RT/Extension/BeautifyUI.pm');
 requires_rt('6.0.2');
 rt_too_new('7.0.0');
+requires('LWP::UserAgent');
+requires('XML::LibXML');
 auto_manifest();
 sign(0);
 WriteAll();
