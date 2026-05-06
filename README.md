@@ -14,6 +14,7 @@ as the RT 6 environment evolves. Consider it a permanent work in progress.
 - Section icons on asset and article display widgets
 - Coloured icons in the main navigation menu (Home, Search, Reports,
   Articles, Assets, Projects, Tools, Admin)
+- `bi-diagram-3` icon on the **LifecycleWidget** panel
 
 ![Navigation menu with coloured icons](screenshots/Menu.png)
 
@@ -40,6 +41,7 @@ as the RT 6 environment evolves. Consider it a permanent work in progress.
 - **LinkedArticles** — sidebar widget listing all articles linked to the
   current ticket; hidden when no articles are linked, auto-refreshes via
   HTMX when links change
+
 
 ![Colour-coded due date on ticket Dates panel](screenshots/ColoredDueDate.png)
 
@@ -159,6 +161,33 @@ A profile card for the currently logged-in user, featuring:
 Widget title reads **Welcome [Full Name]** (or username if no real name set).
 
 ![UserProfileWidget](screenshots/UserProfileWidget.png)
+
+### LifecycleWidget (Ticket Display Widget)
+
+Renders the current queue's lifecycle as a responsive, colour-coded SVG state
+diagram directly on the ticket page. Also available as the standalone
+[RT-Extension-LifecycleWidget](../RT-Extension-LifecycleWidget/).
+
+- Status nodes in three columns: **Initial** (blue), **Active** (green),
+  **Inactive** (grey); current status highlighted in amber
+- Transition arrows as cubic bezier curves with arrowheads
+- Active column auto-wraps to 2 or 3 sub-columns for larger lifecycles
+- **Smart complexity scaling** — for lifecycles with > 20 statuses only
+  transitions from/to the current status are drawn
+- Four responsive breakpoints; narrow mode (< 260 px) switches to a 2-column
+  grid without arrows
+- Server-side SVG fallback ensures the diagram is always visible, even before
+  JavaScript runs
+- `bi-diagram-3` Bootstrap icon in the widget title; orange top border
+  (`#EF6C00`)
+
+**Add to a Page Layout:**
+
+1. **Admin → Global → Page Layouts** → edit the desired layout
+2. Add **LifecycleWidget** to one of the columns
+3. Save
+
+![LifecycleWidget with orange border and diagram icon](screenshots/LifecycleWidget.png)
 
 ### LinkedArticles (Ticket Display Widget)
 
@@ -309,6 +338,24 @@ Date,Holiday,Countries,Type,Description
 ---
 
 ## Changelog
+
+### 2.3.0
+
+**Ticket Display Widget: LifecycleWidget**
+
+- Absorbs [RT-Extension-LifecycleWidget](../RT-Extension-LifecycleWidget/)
+  standalone into BeautifyUI
+- Added `html/Ticket/Widgets/Display/LifecycleWidget` — Page Layout entry point
+- Added `html/Ticket/Elements/ShowLifecycle` — server-side SVG renderer with
+  ResizeObserver-based adaptive JS re-render at four breakpoints; narrow mode
+  (< 260 px) switches to 2-column grid; complex lifecycle mode (> 20 statuses)
+  shows only current-status transitions
+- Added `static/css/lifecycle-widget.css` — all widget styles; loaded
+  automatically via `RT->AddStyleSheets`
+- `beautify-ui.css`: `bi-diagram-3` icon in widget title, orange top border
+  (`#EF6C00`) consistent with RT 6 material-design palette
+- `BeautifyUI.pm`: version bumped to 2.3.0; `lifecycle-widget.css` registered
+  via `RT->AddStyleSheets`
 
 ### 2.2.0
 

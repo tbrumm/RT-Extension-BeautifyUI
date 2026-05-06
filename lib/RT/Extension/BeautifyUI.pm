@@ -1,6 +1,6 @@
 package RT::Extension::BeautifyUI;
 
-our $VERSION = '2.2.0';
+our $VERSION = '2.3.0';
 
 use strict;
 use warnings;
@@ -10,6 +10,7 @@ use JSON::PP ();
 use Encode qw(decode);
 
 RT->AddStyleSheets('beautify-ui.css');
+RT->AddStyleSheets('lifecycle-widget.css');
 
 # Register all dashboard widgets automatically
 {

@@ -1,0 +1,41 @@
+/* ── LifecycleWidget SVG diagram ──────────────────────────────── */
+
+.lw-svg-scroll { overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; }
+.lw-svg        { display: block; }
+
+.lw-col-label,
+.lw-sec-lbl {
+    font-family: inherit;
+    fill: var(--bs-secondary-color, #6c757d);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+}
+
+.lw-rect                { fill: var(--bs-body-bg, #fff);                    stroke: var(--bs-border-color, #dee2e6);               stroke-width: 1.5; }
+.lw-initial .lw-rect    { fill: var(--bs-info-bg-subtle, #cff4fc);          stroke: var(--bs-info-border-subtle, #9eeaf9); }
+.lw-active  .lw-rect    { fill: var(--bs-success-bg-subtle, #d1e7dd);       stroke: var(--bs-success-border-subtle, #a3cfbb); }
+.lw-inactive .lw-rect   { fill: var(--bs-secondary-bg-subtle, #e2e3e5);     stroke: var(--bs-secondary-border-subtle, #c4c8cb); }
+.lw-current .lw-rect    { fill: var(--bs-warning-bg-subtle, #fff3cd) !important; stroke: var(--bs-warning, #ffc107) !important; stroke-width: 2.5; }
+
+.lw-lbl                 { font-family: inherit; fill: var(--bs-body-color, #212529); }
+.lw-current .lw-lbl     { font-weight: 700; fill: var(--bs-emphasis-color, #000); }
+
+.lw-arr                 { fill: none; stroke: var(--bs-border-color, #dee2e6); stroke-width: 1.5; stroke-opacity: .55; }
+.lw-arr-cur             { fill: none; stroke: var(--bs-warning, #ffc107);      stroke-width: 2;   stroke-opacity: 1; }
+.lw-mkarr               { fill: var(--bs-border-color, #dee2e6); opacity: .55; }
+.lw-mkarr-cur           { fill: var(--bs-warning, #ffc107); }
+
+/* ── Legend dots ─────────────────────────────────────────────── */
+
+.lw-legend { display: flex; flex-wrap: wrap; gap: .35rem .7rem; margin-bottom: .45rem; }
+.lw-dot    { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: middle; margin-right: 3px; }
+
+.lw-dot-i { background: var(--bs-info-bg-subtle, #cff4fc);      border: 1.5px solid var(--bs-info-border-subtle, #9eeaf9); }
+.lw-dot-a { background: var(--bs-success-bg-subtle, #d1e7dd);   border: 1.5px solid var(--bs-success-border-subtle, #a3cfbb); }
+.lw-dot-n { background: var(--bs-secondary-bg-subtle, #e2e3e5); border: 1.5px solid var(--bs-secondary-border-subtle, #c4c8cb); }
+.lw-dot-c { background: var(--bs-warning-bg-subtle, #fff3cd);   border: 2px solid var(--bs-warning, #ffc107); }
+
+/* ── TitleBox border – matches RT6 material-design palette ───── */
+
+.titlebox.card.lw-titlebox { border-top: 3px solid #EF6C00; }

@@ -1,3 +1,16 @@
+/* ── LifecycleWidget (RT-Extension-LifecycleWidget) ──────────── */
+.lw-titlebox .titlebox-title .left::before {
+    font-family: "bootstrap-icons" !important;
+    content: "\F5A2"; /* bi-diagram-3 */
+    margin-right: 0.4em;
+    font-style: normal;
+    font-weight: normal;
+    vertical-align: -0.1em;
+    opacity: 0.7;
+}
+.titlebox.card.lw-titlebox { border-top: 3px solid #EF6C00; }
+
+/* ── Ticket Display Widget Icons ─────────────────────────────── */
 .ticket-info-basics .titlebox-title .left::before    { font-family: "bootstrap-icons" !important; content: "\F431"; margin-right: 0.4em; font-style: normal; font-weight: normal; vertical-align: -0.1em; opacity: 0.7; }
 .ticket-info-people .titlebox-title .left::before    { font-family: "bootstrap-icons" !important; content: "\F4CF"; margin-right: 0.4em; font-style: normal; font-weight: normal; vertical-align: -0.1em; opacity: 0.7; }
 .ticket-info-dates .titlebox-title .left::before     { font-family: "bootstrap-icons" !important; content: "\F1F3"; margin-right: 0.4em; font-style: normal; font-weight: normal; vertical-align: -0.1em; opacity: 0.7; }
